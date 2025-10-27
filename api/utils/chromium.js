@@ -25,6 +25,8 @@ export async function getBrowser() {
     }
 
     // Production - use Vercel's Chromium layer
+    const executablePath = await chromium.executablePath('/tmp/chromium');
+    
     return await puppeteer.launch({
       args: [
         ...chromium.args,
@@ -33,10 +35,12 @@ export async function getBrowser() {
         '--disable-features=IsolateOrigins,site-per-process',
         '--ignore-certificate-errors',
         '--ignore-certificate-errors-spki-list',
-        '--disable-gpu'
+        '--disable-gpu',
+        '--single-process',
+        '--no-zygote'
       ],
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
+      executablePath,
       headless: chromium.headless,
       ignoreHTTPSErrors: true,
     });
