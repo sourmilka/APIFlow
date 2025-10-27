@@ -23,6 +23,7 @@ import { retryWithBackoff } from './utils/retryHandler';
 import { categorizeError, formatErrorForDisplay } from './utils/errorHandler';
 import ErrorDisplay from './components/ErrorDisplay';
 import PerformanceMetrics from './components/PerformanceMetrics';
+import { API_ENDPOINTS } from './config/api';
 
 function App() {
   const [url, setUrl] = useState('');
@@ -325,7 +326,7 @@ ${JSON.stringify(api.payload, null, 2)}
       // Wrap fetch with retry logic
       const data = await retryWithBackoff(
         async () => {
-          const response = await fetch('http://localhost:3001/api/parse', {
+          const response = await fetch(API_ENDPOINTS.PARSE, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -468,7 +469,7 @@ ${JSON.stringify(api.payload, null, 2)}
 
       const data = await retryWithBackoff(
         async () => {
-          const response = await fetch('http://localhost:3001/api/parse', {
+          const response = await fetch(API_ENDPOINTS.PARSE, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -643,7 +644,7 @@ ${JSON.stringify(api.payload, null, 2)}
     if (!currentSessionId) return;
     
     try {
-      await fetch(`http://localhost:3001/api/cancel/${currentSessionId}`, {
+      await fetch(API_ENDPOINTS.CANCEL(currentSessionId), {
         method: 'POST'
       });
       setLoading(false);

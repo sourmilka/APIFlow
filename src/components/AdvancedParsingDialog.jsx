@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Shield, Zap, Target, Bug, Globe, Server, X, Check } from 'lucide-react';
+import { API_ENDPOINTS } from '../config/api';
 
 const AdvancedParsingDialog = ({ isOpen, onClose, onParse, initialUrl = '' }) => {
   const [url, setUrl] = useState(initialUrl);
@@ -28,7 +29,7 @@ const AdvancedParsingDialog = ({ isOpen, onClose, onParse, initialUrl = '' }) =>
 
   const fetchProfiles = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/parsing/profiles');
+      const response = await fetch(API_ENDPOINTS.PARSING_PROFILES);
       const data = await response.json();
       if (data.success) {
         setProfiles(data.profileDetails);

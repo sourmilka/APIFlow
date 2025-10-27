@@ -1,13 +1,14 @@
 import { Loader2, CheckCircle, Wifi, Globe, MousePointer, Package, AlertCircle, RefreshCw, Clock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
+import { API_BASE_URL } from '../config/api';
 
 function ProgressTracker({ onProgress }) {
   const [progress, setProgress] = useState([]);
   const [currentStatus, setCurrentStatus] = useState(null);
 
   useEffect(() => {
-    const socket = io('http://localhost:3001');
+    const socket = io(API_BASE_URL);
 
     socket.on('parsing-progress', (data) => {
       setProgress(prev => [...prev, data]);

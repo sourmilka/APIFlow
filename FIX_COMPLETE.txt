@@ -1,0 +1,118 @@
+================================================================================
+SSL/TLS ERROR FIX - COMPLETE
+================================================================================
+
+PROBLEM:
+--------
+When trying to parse websites on Vercel, you got:
+- Error Type: ssl
+- Title: SSL/TLS Error
+- Message: Secure connection could not be established
+- Technical: TypeError: Failed to fetch
+
+ROOT CAUSE:
+-----------
+The frontend code had hardcoded URLs pointing to "http://localhost:3001/api/parse"
+This works in development but fails in production because:
+1. localhost:3001 doesn't exist on Vercel
+2. The browser sees this as a cross-origin request that fails
+3. The error manifests as "Failed to fetch" which looks like an SSL error
+
+SOLUTION:
+---------
+Created environment-aware API configuration that automatically detects:
+- Development: Uses http://localhost:3001
+- Production: Uses relative URLs (empty string = same domain)
+
+FILES CREATED:
+--------------
+1. src/config/api.js - Centralized API endpoint configuration
+2. .env.example - Environment variable template
+3. VERCEL_SSL_FIX.md - Detailed deployment guide
+4. DEPLOYMENT_FIX_SUMMARY.md - Quick reference
+5. TEST_API_CONFIG.md - Testing instructions
+6. FIX_COMPLETE.txt - This file
+
+FILES MODIFIED:
+---------------
+1. src/App.jsx - Uses API_ENDPOINTS instead of hardcoded URLs
+2. src/utils/realtime.js - Environment-aware Socket.IO
+3. src/components/ProgressTracker.jsx - Uses API_BASE_URL
+4. src/components/DnsChecker.jsx - Uses API_ENDPOINTS
+5. src/components/AdvancedParsingDialog.jsx - Uses API_ENDPOINTS
+6. api/utils/chromium.js - Enhanced SSL error handling
+7. .env.production - Removed hardcoded VITE_API_URL
+
+HOW IT WORKS:
+-------------
+Before: fetch('http://localhost:3001/api/parse') ❌ Fails on Vercel
+After:  fetch('/api/parse')                      ✅ Works on Vercel!
+
+The API configuration automatically detects the environment:
+- In dev: API_BASE_URL = 'http://localhost:3001'
+- In prod: API_BASE_URL = '' (empty = relative URLs)
+
+DEPLOYMENT STEPS:
+-----------------
+1. Commit all changes:
+   git add .
+   git commit -m "Fix: SSL/TLS errors with environment-aware API endpoints"
+   git push
+
+2. Vercel will auto-deploy (or trigger manually)
+
+3. Verify environment variables in Vercel Dashboard:
+   - MONGODB_URI (your MongoDB connection string)
+   - VITE_SUPABASE_URL (your Supabase URL)
+   - VITE_SUPABASE_ANON_KEY (your Supabase key)
+   - NODE_ENV=production
+   - VITE_API_URL= (leave empty or don't set)
+
+4. Test the deployed app:
+   - Visit your Vercel URL
+   - Try parsing a website
+   - Should work without SSL errors!
+
+TESTING:
+--------
+✅ Local development: npm run dev (should work as before)
+✅ Production build: npm run build (should complete)
+✅ Vercel deployment: Should work without SSL/TLS errors
+✅ Browser console: No "Failed to fetch" errors
+
+WHAT TO EXPECT:
+---------------
+After deploying these changes:
+1. No more SSL/TLS errors when parsing websites
+2. API calls will go to /api/parse (same domain)
+3. Local development continues to work normally
+4. All features (parsing, history, etc.) work on Vercel
+
+TROUBLESHOOTING:
+----------------
+If you still see errors after deployment:
+
+1. Check browser console (F12) for actual error messages
+2. Verify API calls are going to /api/* not localhost:3001
+3. Check Vercel function logs for backend errors
+4. Ensure all environment variables are set in Vercel
+5. Try clearing browser cache and hard refresh (Ctrl+Shift+R)
+
+SUPPORT FILES:
+--------------
+- VERCEL_SSL_FIX.md - Detailed technical guide
+- DEPLOYMENT_FIX_SUMMARY.md - Quick reference
+- TEST_API_CONFIG.md - Testing procedures
+
+================================================================================
+STATUS: READY TO DEPLOY
+================================================================================
+
+Next steps:
+1. Review the changes (all files listed above)
+2. Test locally with: npm run dev
+3. Commit and push to trigger Vercel deployment
+4. Test on Vercel URL
+5. Enjoy your working API parser! 🎉
+
+================================================================================

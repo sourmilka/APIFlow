@@ -146,7 +146,8 @@ export function useRealtimeWithFallback(sessionId, onProgress, onError, onRetry)
   
   // Fallback to Socket.IO if Supabase not available
   if (typeof io !== 'undefined') {
-    const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:3001');
+    const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
+    const socket = io(apiUrl);
     
     socket.on('parsing-progress', (data) => {
       if (!sessionId || data.sessionId === sessionId) {

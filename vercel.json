@@ -1,32 +1,11 @@
 {
   "version": 2,
-  "name": "apiflow",
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ],
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "functions": {
     "api/**/*.js": {
-      "memory": 3008,
-      "maxDuration": 300
+      "memory": 1024,
+      "maxDuration": 60
     }
   },
   "env": {

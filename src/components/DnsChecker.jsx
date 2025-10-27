@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Shield, AlertTriangle, CheckCircle, Loader2, Globe, Server, Clock } from 'lucide-react';
+import { API_ENDPOINTS } from '../config/api';
 
 const DnsChecker = () => {
   const [url, setUrl] = useState('https://ge.movie/');
@@ -18,7 +19,7 @@ const DnsChecker = () => {
     setResults(null);
 
     try {
-      const response = await fetch('http://localhost:3001/api/dns/check', {
+      const response = await fetch(API_ENDPOINTS.DNS_CHECK, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
