@@ -103,11 +103,12 @@ export default async function handler(req, res) {
   } catch (error) {
     if (page) await page.close().catch(() => {});
     const duration = Date.now() - startTime;
-    console.error(`[parse] Error (${duration}ms):`, error.message);
+    console.error(`[parse] Error (${duration}ms):`, error.message, error.stack);
     const isTimeout = error.message?.includes('timeout') || error.message?.includes('Timeout');
     res.status(isTimeout ? 504 : 500).json({
       error: 'Parsing failed',
       message: isTimeout ? 'Website took too long to load. Try a simpler page.' : error.message,
+      detail: error.stack?.split('\n').slice(0, 3).join(' | '),
       sessionId, duration
     });
   }

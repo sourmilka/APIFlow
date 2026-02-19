@@ -8,19 +8,26 @@ export async function getBrowser() {
     try {
       const browser = await browserPromise;
       if (browser.isConnected()) return browser;
-    } catch { /* stale browser */ }
+      console.log('[chromium] Stale browser, reconnecting...');
+    } catch (e) {
+      console.log('[chromium] Browser promise rejected:', e.message);
+    }
     browserPromise = null;
   }
 
+  console.log('[chromium] Launching new browser...');
   browserPromise = (async () => {
-    const executablePath = await chromium.executablePath('/tmp/chromium');
-    return await puppeteer.launch({
-      args: [...chromium.args, '--hide-scrollbars', '--disable-web-security', '--disable-features=IsolateOrigins,site-per-process', '--ignore-certificate-errors', '--disable-gpu', '--single-process', '--no-zygote'],
-      defaultViewport: chromium.defaultViewport,
+    const executablePath = await chromium.executablePath();
+    console.log('[chromium] Executable path:', executablePath);
+    const browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: { width: 1280, height: 720 },
       executablePath,
       headless: chromium.headless,
       ignoreHTTPSErrors: true,
     });
+    console.log('[chromium] Browser launched successfully');
+    return browser;
   })();
 
   return browserPromise;
