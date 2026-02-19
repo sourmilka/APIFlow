@@ -2,7 +2,7 @@ export const BRAND = {
   name: 'APIFlow',
   tagline: 'Discover & Analyze APIs from any website',
   version: '4.0.0',
-  url: 'https://api-flow-virid.vercel.app',
+  url: 'https://apiflow-umber.vercel.app',
 };
 
 export const METHOD_COLORS = {
