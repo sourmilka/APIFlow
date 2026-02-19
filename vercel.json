@@ -3,9 +3,13 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/**/*.js": {
+    "api/parse.js": {
       "memory": 1024,
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "api/utils/**,api/config/**"
+    },
+    "api/session/[sessionId].js": {
+      "includeFiles": "api/config/**"
     }
   },
   "env": {

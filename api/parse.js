@@ -1,6 +1,11 @@
 import { getBrowser, createPage } from './utils/chromium.js';
 import { detectAuthentication, explainAPI, parseGraphQL, parseRateLimitHeaders } from './utils/helpers.js';
 
+let mongoModule = null;
+try {
+  mongoModule = await import('./config/mongodb.js');
+} catch { /* MongoDB not available */ }
+
 function isValidUrl(str) {
   try {
     const u = new URL(str);
@@ -92,10 +97,11 @@ export default async function handler(req, res) {
 
     // Optional MongoDB save
     try {
-      const { getCollection, COLLECTIONS } = await import('./config/mongodb.js');
-      const col = await getCollection(COLLECTIONS.SESSIONS);
-      await col.insertOne({ sessionId, url, apiCalls, webSockets: webSocketConnections, timestamp: new Date(), createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000) });
-    } catch { /* MongoDB not available or failed */ }
+      if (mongoModule) {
+        const col = await mongoModule.getCollection(mongoModule.COLLECTIONS.SESSIONS);
+        await col.insertOne({ sessionId, url, apiCalls, webSockets: webSocketConnections, timestamp: new Date(), createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000) });
+      }
+    } catch (e) { console.log('[parse] MongoDB save skipped:', e.message); }
 
     const duration = Date.now() - startTime;
     console.log(`[parse] Done: ${apiCalls.length} APIs in ${duration}ms`);
