@@ -18,34 +18,76 @@ function isValidUrl(str) {
 }
 
 /**
- * Parse Cookie Editor JSON format into Puppeteer cookie format.
+ * Parse cookies from many formats into Puppeteer cookie format.
+ * Supports: Cookie Editor JSON, EditThisCookie, Netscape/wget, header string,
+ * HAR cookies, key=value pairs, object/dict format.
  */
 function parseCookieEditorFormat(cookies, targetUrl) {
   if (!cookies) return null;
   const hostname = new URL(targetUrl).hostname;
 
+  // ── Array format (Cookie Editor, EditThisCookie, HAR cookies) ──
   if (Array.isArray(cookies)) {
     return cookies.map(c => ({
       name: c.name,
-      value: c.value,
+      value: String(c.value ?? ''),
       domain: c.domain || hostname,
       path: c.path || '/',
       httpOnly: c.httpOnly || false,
       secure: c.secure || false,
       sameSite: c.sameSite === 'no_restriction' ? 'None' :
                 c.sameSite === 'lax' ? 'Lax' :
-                c.sameSite === 'strict' ? 'Strict' : 'Lax',
-      ...(c.expirationDate ? { expires: c.expirationDate } : {})
-    }));
+                c.sameSite === 'strict' ? 'Strict' :
+                c.sameSite === 'None' ? 'None' :
+                c.sameSite === 'Lax' ? 'Lax' :
+                c.sameSite === 'Strict' ? 'Strict' : 'Lax',
+      ...(c.expirationDate ? { expires: c.expirationDate } : {}),
+      ...(c.expires && !c.expirationDate ? { expires: typeof c.expires === 'string' ? Math.floor(new Date(c.expires).getTime() / 1000) : c.expires } : {}),
+    })).filter(c => c.name);
   }
 
+  // ── Object/dict format { name: value } ──
+  if (typeof cookies === 'object' && !Array.isArray(cookies)) {
+    return Object.entries(cookies).map(([name, value]) => ({
+      name, value: String(value ?? ''), domain: hostname, path: '/'
+    })).filter(c => c.name);
+  }
+
+  // ── String formats ──
   if (typeof cookies === 'string') {
+    const trimmed = cookies.trim();
+
+    // Try JSON parse first
     try {
-      const parsed = JSON.parse(cookies);
+      const parsed = JSON.parse(trimmed);
       if (Array.isArray(parsed)) return parseCookieEditorFormat(parsed, targetUrl);
+      if (typeof parsed === 'object') return parseCookieEditorFormat(parsed, targetUrl);
     } catch { /* not JSON */ }
 
-    return cookies.split(';').map(c => {
+    // Netscape/wget cookie file format (tab-separated lines)
+    // Format: domain\tTRUE/FALSE\tpath\tTRUE/FALSE\texpires\tname\tvalue
+    if (trimmed.includes('\t') && !trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+      const lines = trimmed.split('\n').filter(l => l.trim() && !l.trim().startsWith('#'));
+      const netscapeCookies = [];
+      for (const line of lines) {
+        const parts = line.split('\t');
+        if (parts.length >= 7) {
+          netscapeCookies.push({
+            name: parts[5].trim(),
+            value: parts[6].trim(),
+            domain: parts[0].trim().replace(/^\./, '.'),
+            path: parts[2].trim() || '/',
+            secure: parts[3].trim().toUpperCase() === 'TRUE',
+            httpOnly: false,
+            ...(parts[4] && parts[4] !== '0' ? { expires: parseInt(parts[4]) } : {}),
+          });
+        }
+      }
+      if (netscapeCookies.length > 0) return netscapeCookies;
+    }
+
+    // Simple header format: "name=value; name2=value2"
+    return trimmed.split(';').map(c => {
       const [name, ...valueParts] = c.trim().split('=');
       return { name: name?.trim(), value: valueParts.join('=')?.trim(), domain: hostname, path: '/' };
     }).filter(c => c.name && c.value);
