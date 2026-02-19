@@ -94,6 +94,43 @@ export default function SecurityPanel({ securityHeaders, apis }) {
     items.push({ label: 'Authentication Methods', value: authTypes.join(', '), status: 'info' });
   }
 
+  // CORS Deep Analysis
+  const corsApis = apis?.filter(a => a.response?.cors?.allowOrigin) || [];
+  if (corsApis.length > 0) {
+    const wildcardCors = corsApis.filter(a => a.response.cors.allowOrigin === '*');
+    const credentialCors = corsApis.filter(a => a.response.cors.credentials === 'true');
+    if (wildcardCors.length > 0) {
+      items.push({
+        label: 'CORS Wildcard APIs',
+        value: `${wildcardCors.length} endpoint${wildcardCors.length !== 1 ? 's' : ''} allow any origin (*). ${credentialCors.length > 0 ? 'WARNING: ' + credentialCors.length + ' also allow credentials!' : 'No credentials exposed.'}`,
+        status: credentialCors.length > 0 ? 'bad' : 'warn'
+      });
+    }
+  }
+
+  // Mixed content check
+  const httpApis = apis?.filter(a => a.url?.startsWith('http://')) || [];
+  if (httpApis.length > 0) {
+    items.push({
+      label: 'Mixed Content',
+      value: `${httpApis.length} endpoint${httpApis.length !== 1 ? 's' : ''} use insecure HTTP`,
+      status: 'bad'
+    });
+  }
+
+  // Exposed API keys check
+  const exposedKeys = apis?.filter(a => {
+    const url = a.url?.toLowerCase() || '';
+    return url.includes('key=') || url.includes('api_key=') || url.includes('apikey=') || url.includes('token=');
+  }) || [];
+  if (exposedKeys.length > 0) {
+    items.push({
+      label: 'Exposed Keys in URL',
+      value: `${exposedKeys.length} endpoint${exposedKeys.length !== 1 ? 's' : ''} may have API keys in query parameters`,
+      status: 'warn'
+    });
+  }
+
   // Score
   const good = items.filter(i => i.status === 'good').length;
   const total = items.length;

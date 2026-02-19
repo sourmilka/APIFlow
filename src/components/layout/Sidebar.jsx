@@ -1,10 +1,10 @@
-import { History, Plus, Globe, Clock, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { History, Plus, Globe, Clock, Trash2, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { BRAND } from '@/constants/brand';
 
-export default function Sidebar({ sessions, activeSessionId, collapsed, onToggle, onSelect, onNew, onDelete, onRename }) {
+export default function Sidebar({ sessions, activeSessionId, collapsed, onToggle, onSelect, onNew, onDelete, onRename, theme, onToggleTheme }) {
   return (
     <aside className={`h-screen bg-card border-r border-border flex flex-col transition-all duration-300 ${collapsed ? 'w-[52px]' : 'w-64'}`}>
       {/* Header */}
@@ -91,10 +91,28 @@ export default function Sidebar({ sessions, activeSessionId, collapsed, onToggle
 
       {/* Footer */}
       {!collapsed && (
-        <div className="p-2 border-t border-border">
+        <div className="p-2 border-t border-border space-y-1.5">
+          <button
+            onClick={onToggleTheme}
+            className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+          >
+            {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+            {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+          </button>
           <div className="text-[10px] text-muted-foreground text-center">
             {BRAND.name} {BRAND.version}
           </div>
+        </div>
+      )}
+      {collapsed && (
+        <div className="p-2 border-t border-border flex justify-center">
+          <button
+            onClick={onToggleTheme}
+            className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-accent transition-colors"
+            title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+          >
+            {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+          </button>
         </div>
       )}
     </aside>

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Toolbar from '@/components/layout/Toolbar';
 import EmptyState from '@/components/EmptyState';
@@ -12,6 +12,8 @@ import { WebSocketList, WebSocketDetailPanel } from '@/components/WebSocketPanel
 import SecurityPanel from '@/components/SecurityPanel';
 import AnalyticsPanel from '@/components/AnalyticsPanel';
 import LogViewer from '@/components/LogViewer';
+import CookieViewer from '@/components/CookieViewer';
+import WaterfallTimeline from '@/components/WaterfallTimeline';
 import { useToast } from '@/hooks/useToast';
 import useKeyboardShortcuts from '@/hooks/useKeyboardShortcuts';
 import { endpoints, apiPost } from '@/config/api';
@@ -20,58 +22,29 @@ import { EXPORT_FORMATS, downloadFile } from '@/utils/exporters';
 import { logger } from '@/utils/logger';
 
 /**
- * APIFlow v4.0 — 50 Features
+ * APIFlow v5.0 — 70 Features
  * ─────────────────────────────────────────
- *  1. URL scanning with headless browser
- *  2. Cookie-based authentication (Cookie Editor format)
- *  3. WebSocket connection capture (CDP)
- *  4. XHR/Fetch request interception
- *  5. GraphQL query detection & parsing
- *  6. Server-Sent Events (SSE) detection
- *  7. Request header capture
- *  8. Response header capture
- *  9. Request body/payload capture
- * 10. Response body capture
- * 11. Authentication detection (Bearer, API Key, Basic, Cookie, CSRF)
- * 12. Rate limit header detection
- * 13. CORS header analysis
- * 14. API versioning detection
- * 15. REST endpoint categorization
- * 16. HTTP method distribution stats
- * 17. Response time analysis
- * 18. Response size tracking
- * 19. Content-type analysis
- * 20. Status code distribution
- * 21. Security header analysis (CSP, HSTS, X-Frame, etc.)
- * 22. cURL code generation
- * 23. JavaScript fetch code generation
- * 24. Python requests code generation
- * 25. Node.js axios code generation
- * 26. WebSocket client code generation
- * 27. SSE client code generation
- * 28. Export as JSON
- * 29. Export as CSV
- * 30. Export as cURL collection
- * 31. Export as Postman collection
- * 32. Export as Markdown documentation
- * 33. Copy individual endpoint URL
- * 34. Search/filter endpoints by URL
- * 35. Filter by HTTP method
- * 36. Filter by status code group
- * 37. Sort by response time
- * 38. Sort by URL
- * 39. Sort by status code
- * 40. Session history (localStorage)
- * 41. Session deletion
- * 42. Session rename
- * 43. Deep scan mode (click interactive elements)
- * 44. Custom headers support
- * 45. Custom user-agent
- * 46. Query parameter extraction
- * 47. Host distribution analytics
- * 48. Slowest endpoints ranking
- * 49. Keyboard shortcuts (Ctrl+N/R/E, Esc, Ctrl+/)
- * 50. Structured logging & debug viewer
+ *  1-50. All v4.0 features (scan, auth, capture, code gen, export, etc.)
+ *  51. JSON Tree Viewer (collapsible response body viewer)
+ *  52. API Replay / Try It (execute API call from browser)
+ *  53. Request Waterfall Timeline (visual timing chart)
+ *  54. Duplicate API Detection (same-path badge)
+ *  55. Pin/Bookmark APIs (star & pin to top)
+ *  56. HAR Export (HTTP Archive format)
+ *  57. Response Body Search (search in payloads)
+ *  58. Group By Host toggle (collapsible host groups)
+ *  59. Copy All Endpoints (batch copy URLs)
+ *  60. Share Session (copy compressed session data)
+ *  61. Cookie Viewer (page cookies panel)
+ *  62. Response Size Indicator (visual bars)
+ *  63. Dark/Light Theme Toggle
+ *  64. Inline Response Preview (preview in API list)
+ *  65. Connection Info Display (server, CDN, cf-ray)
+ *  66. URL Path Breakdown (visual segments)
+ *  67. CORS Deep Validator (wildcard + credential warnings)
+ *  68. WebSocket Frame Stats (sent/received/sizes/rates)
+ *  69. URL Auto-suggest (popular sites dropdown)
+ *  70. Real-time Scan Progress (step-by-step indicator)
  */
 
 export default function App() {
@@ -89,9 +62,19 @@ export default function App() {
   const [filterStatus, setFilterStatus] = useState('');
   const [sortBy, setSortBy] = useState('');
   const [activeTab, setActiveTab] = useState('apis');
-  const [rightPanel, setRightPanel] = useState(null); // 'analytics', 'security', 'logs'
+  const [rightPanel, setRightPanel] = useState(null); // 'analytics', 'security', 'logs', 'waterfall', 'cookies'
+  const [pinnedIds, setPinnedIds] = useState([]);
+  const [groupByHost, setGroupByHost] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('apiflow-theme') || 'dark');
   const abortRef = useRef(null);
   const { toasts, toast, removeToast } = useToast();
+
+  // ── Theme effect ─────────────────────────────────────────
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.classList.toggle('light', theme === 'light');
+    localStorage.setItem('apiflow-theme', theme);
+  }, [theme]);
 
   // ── Derived ───────────────────────────────────────────────
   const activeSession = useMemo(
@@ -112,7 +95,10 @@ export default function App() {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       list = list.filter((a) => a.url.toLowerCase().includes(q) || a.method.toLowerCase().includes(q) ||
-        a.category?.toLowerCase().includes(q) || a.explanations?.some(e => e.toLowerCase().includes(q))
+        a.category?.toLowerCase().includes(q) || a.explanations?.some(e => e.toLowerCase().includes(q)) ||
+        a.hostname?.toLowerCase().includes(q) ||
+        // Response body search (Feature 57)
+        (a.response?.data && JSON.stringify(a.response.data).toLowerCase().includes(q))
       );
     }
     // Sort
@@ -158,6 +144,8 @@ export default function App() {
         securityHeaders: data.securityHeaders || null,
         pageInfo: data.pageInfo || null,
         pageResources: data.pageResources || null,
+        pageCookies: data.pageCookies || [],
+        redirectChain: data.redirectChain || [],
         consoleMessages: data.consoleMessages || [],
         pageErrors: data.pageErrors || [],
         serverLogs: data.logs || [],
@@ -231,6 +219,50 @@ export default function App() {
     );
   }, [toast]);
 
+  // Feature 59: Copy All Endpoints
+  const handleCopyAll = useCallback(() => {
+    if (!activeSession) return;
+    const urls = (activeSession.apis || []).map(a => a.url).join('\n');
+    navigator.clipboard.writeText(urls).then(
+      () => { toast.success(`Copied ${activeSession.apis.length} URLs`); logger.featureUsed('copy-all'); },
+      () => toast.error('Failed to copy')
+    );
+  }, [activeSession, toast]);
+
+  // Feature 55: Pin/Bookmark APIs
+  const handlePin = useCallback((apiId) => {
+    setPinnedIds(prev => prev.includes(apiId) ? prev.filter(id => id !== apiId) : [...prev, apiId]);
+    logger.featureUsed('pin-api', { apiId });
+  }, []);
+
+  // Feature 60: Share Session
+  const handleShareSession = useCallback(() => {
+    if (!activeSession) return;
+    const shareData = {
+      url: activeSession.url,
+      totalApis: activeSession.totalApis,
+      totalWebSockets: activeSession.totalWebSockets,
+      apis: (activeSession.apis || []).map(a => ({
+        method: a.method, url: a.url, status: a.response?.status,
+        responseTime: a.response?.responseTime, category: a.category
+      })),
+      timestamp: activeSession.timestamp
+    };
+    const json = JSON.stringify(shareData);
+    const encoded = btoa(json);
+    navigator.clipboard.writeText(encoded).then(
+      () => toast.success('Session data copied! Share this encoded string with others.'),
+      () => toast.error('Failed to copy')
+    );
+    logger.featureUsed('share-session');
+  }, [activeSession, toast]);
+
+  // Feature 63: Theme Toggle
+  const handleToggleTheme = useCallback(() => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+    logger.featureUsed('toggle-theme');
+  }, []);
+
   const handleExport = useCallback((formatId) => {
     if (!activeSession) return;
     if (formatId) {
@@ -277,6 +309,17 @@ export default function App() {
         </div>
       </div>
     );
+    if (rightPanel === 'waterfall') return (
+      <div className="w-[500px] border-l border-border bg-card flex flex-col h-full animate-slide-right">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <span className="text-sm font-medium">Request Waterfall</span>
+          <button onClick={() => setRightPanel(null)} className="text-xs text-muted-foreground hover:text-foreground">✕</button>
+        </div>
+        <div className="flex-1 overflow-auto p-4">
+          <WaterfallTimeline apis={activeSession?.apis} />
+        </div>
+      </div>
+    );
     if (rightPanel === 'security') return (
       <div className="w-[420px] border-l border-border bg-card flex flex-col h-full animate-slide-right">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -287,6 +330,9 @@ export default function App() {
           <SecurityPanel securityHeaders={activeSession?.securityHeaders} apis={activeSession?.apis} />
         </div>
       </div>
+    );
+    if (rightPanel === 'cookies') return (
+      <CookieViewer cookies={activeSession?.pageCookies} onClose={() => setRightPanel(null)} />
     );
     if (rightPanel === 'logs') return (
       <div className="w-[420px] border-l border-border bg-card flex flex-col h-full animate-slide-right">
@@ -349,6 +395,9 @@ export default function App() {
           selectedId={selectedApiId}
           onSelect={(id) => { setSelectedApiId(selectedApiId === id ? null : id); setSelectedWsId(null); setRightPanel(null); }}
           onCopy={handleCopy}
+          pinnedIds={pinnedIds}
+          onPin={handlePin}
+          groupByHost={groupByHost}
         />
         {selectedApi && !rightPanel && (
           <ApiDetailPanel
@@ -372,10 +421,12 @@ export default function App() {
         activeSessionId={activeSessionId}
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-        onSelect={(id) => { setActiveSessionId(id); setSelectedApiId(null); setSelectedWsId(null); setSearchQuery(''); setFilterMethod(''); setFilterStatus(''); setSortBy(''); setActiveTab('apis'); setRightPanel(null); }}
+        onSelect={(id) => { setActiveSessionId(id); setSelectedApiId(null); setSelectedWsId(null); setSearchQuery(''); setFilterMethod(''); setFilterStatus(''); setSortBy(''); setActiveTab('apis'); setRightPanel(null); setPinnedIds([]); }}
         onNew={handleNew}
         onDelete={handleDeleteSession}
         onRename={handleRenameSession}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
       />
 
       {/* Main */}
@@ -409,8 +460,14 @@ export default function App() {
               wsCount={activeSession.webSockets?.length || 0}
               sseCount={activeSession.sse?.length || 0}
               onShowAnalytics={() => setRightPanel(rightPanel === 'analytics' ? null : 'analytics')}
+              onShowWaterfall={() => setRightPanel(rightPanel === 'waterfall' ? null : 'waterfall')}
               onShowSecurity={() => setRightPanel(rightPanel === 'security' ? null : 'security')}
+              onShowCookies={() => setRightPanel(rightPanel === 'cookies' ? null : 'cookies')}
               onShowLogs={() => setRightPanel(rightPanel === 'logs' ? null : 'logs')}
+              onCopyAll={handleCopyAll}
+              groupByHost={groupByHost}
+              onToggleGroupByHost={() => setGroupByHost(!groupByHost)}
+              onShareSession={handleShareSession}
             />
             {renderMainContent()}
           </>

@@ -175,11 +175,59 @@ export function exportMarkdown(session) {
   return md;
 }
 
+export function exportHAR(session) {
+  const entries = (session.apis || []).map(api => {
+    let parsedUrl;
+    try { parsedUrl = new URL(api.url); } catch { parsedUrl = null; }
+    return {
+      startedDateTime: api.timestamp || new Date().toISOString(),
+      time: api.response?.responseTime || 0,
+      request: {
+        method: api.method,
+        url: api.url,
+        httpVersion: 'HTTP/1.1',
+        cookies: [],
+        headers: Object.entries(api.headers || {}).map(([name, value]) => ({ name, value })),
+        queryString: parsedUrl ? [...parsedUrl.searchParams.entries()].map(([name, value]) => ({ name, value })) : [],
+        postData: api.payload ? { mimeType: api.contentType || 'application/json', text: typeof api.payload === 'string' ? api.payload : JSON.stringify(api.payload) } : undefined,
+        headersSize: -1,
+        bodySize: api.payload ? JSON.stringify(api.payload).length : 0
+      },
+      response: {
+        status: api.response?.status || 0,
+        statusText: api.response?.statusText || '',
+        httpVersion: 'HTTP/1.1',
+        cookies: [],
+        headers: Object.entries(api.response?.headers || {}).map(([name, value]) => ({ name, value })),
+        content: {
+          size: parseInt(api.response?.size) || 0,
+          mimeType: api.response?.contentType || 'application/json',
+          text: api.response?.data ? JSON.stringify(api.response.data) : ''
+        },
+        redirectURL: '',
+        headersSize: -1,
+        bodySize: parseInt(api.response?.size) || 0
+      },
+      cache: {},
+      timings: { send: 0, wait: api.response?.responseTime || 0, receive: 0 }
+    };
+  });
+
+  return JSON.stringify({
+    log: {
+      version: '1.2',
+      creator: { name: 'APIFlow', version: '5.0.0' },
+      entries
+    }
+  }, null, 2);
+}
+
 export const EXPORT_FORMATS = [
   { id: 'json', name: 'JSON', ext: 'json', mime: 'application/json', fn: (s) => exportJSON(s) },
   { id: 'csv', name: 'CSV', ext: 'csv', mime: 'text/csv', fn: (s) => exportCSV(s.apis || []) },
   { id: 'curl', name: 'cURL Collection', ext: 'sh', mime: 'text/plain', fn: (s) => exportCurlCollection(s.apis || []) },
   { id: 'postman', name: 'Postman Collection', ext: 'json', mime: 'application/json', fn: exportPostmanCollection },
+  { id: 'har', name: 'HAR (HTTP Archive)', ext: 'har', mime: 'application/json', fn: exportHAR },
   { id: 'markdown', name: 'Markdown Docs', ext: 'md', mime: 'text/markdown', fn: exportMarkdown },
 ];
 

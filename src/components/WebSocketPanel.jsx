@@ -103,17 +103,33 @@ export function WebSocketDetailPanel({ ws, onClose, onCopy }) {
           <ArrowUpDown className="w-2.5 h-2.5" />
           {ws.frames?.length || 0} frames
         </Badge>
-        <Badge variant="secondary" className="text-[10px]">
-          {ws.frames?.filter(f => f.direction === 'sent').length || 0} sent
+        <Badge variant="secondary" className="text-[10px] text-blue-400 border-blue-500/30">
+          ↑ {ws.frames?.filter(f => f.direction === 'sent').length || 0} sent
         </Badge>
-        <Badge variant="secondary" className="text-[10px]">
-          {ws.frames?.filter(f => f.direction === 'received').length || 0} received
+        <Badge variant="secondary" className="text-[10px] text-emerald-400 border-emerald-500/30">
+          ↓ {ws.frames?.filter(f => f.direction === 'received').length || 0} received
         </Badge>
+        {/* Frame data size estimate */}
+        {ws.frames?.length > 0 && (
+          <Badge variant="secondary" className="text-[10px] text-muted-foreground">
+            ~{(() => {
+              const totalBytes = ws.frames.reduce((s, f) => s + (f.data?.length || 0), 0);
+              return totalBytes > 1024 ? `${(totalBytes / 1024).toFixed(1)} KB` : `${totalBytes} B`;
+            })()}
+          </Badge>
+        )}
+        {/* Avg frame size */}
+        {ws.frames?.length > 0 && (
+          <Badge variant="secondary" className="text-[10px] text-muted-foreground">
+            avg {Math.round(ws.frames.reduce((s, f) => s + (f.data?.length || 0), 0) / ws.frames.length)} B/frame
+          </Badge>
+        )}
       </div>
 
       <Tabs defaultValue="frames" className="flex-1 flex flex-col min-h-0">
         <TabsList className="mx-4 mt-2 bg-muted/50 h-8 shrink-0">
           <TabsTrigger value="frames" className="text-[11px] h-7">Frames</TabsTrigger>
+          <TabsTrigger value="stats" className="text-[11px] h-7">Stats</TabsTrigger>
           <TabsTrigger value="code" className="text-[11px] h-7">Code</TabsTrigger>
           {ws.handshakeHeaders && <TabsTrigger value="headers" className="text-[11px] h-7">Headers</TabsTrigger>}
         </TabsList>
@@ -121,6 +137,58 @@ export function WebSocketDetailPanel({ ws, onClose, onCopy }) {
         <ScrollArea className="flex-1 px-4 pb-4">
           <TabsContent value="frames" className="mt-2">
             <FramesList frames={ws.frames} />
+          </TabsContent>
+
+          <TabsContent value="stats" className="mt-2">
+            {ws.frames?.length > 0 ? (
+              <div className="space-y-3 text-[11px]">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-2 bg-blue-500/5 border border-blue-500/20 rounded">
+                    <div className="text-muted-foreground mb-0.5">Sent</div>
+                    <div className="text-lg font-semibold text-blue-400">{ws.frames.filter(f => f.direction === 'sent').length}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {(() => { const bytes = ws.frames.filter(f => f.direction === 'sent').reduce((s, f) => s + (f.data?.length || 0), 0); return bytes > 1024 ? `${(bytes/1024).toFixed(1)} KB` : `${bytes} B`; })()}
+                    </div>
+                  </div>
+                  <div className="p-2 bg-emerald-500/5 border border-emerald-500/20 rounded">
+                    <div className="text-muted-foreground mb-0.5">Received</div>
+                    <div className="text-lg font-semibold text-emerald-400">{ws.frames.filter(f => f.direction === 'received').length}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {(() => { const bytes = ws.frames.filter(f => f.direction === 'received').reduce((s, f) => s + (f.data?.length || 0), 0); return bytes > 1024 ? `${(bytes/1024).toFixed(1)} KB` : `${bytes} B`; })()}
+                    </div>
+                  </div>
+                </div>
+                {/* JSON vs binary detection */}
+                <div className="p-2 bg-muted/20 border border-border rounded">
+                  <div className="text-muted-foreground mb-1">Message Types</div>
+                  <div className="flex gap-2">
+                    <Badge variant="secondary" className="text-[10px]">
+                      JSON: {ws.frames.filter(f => { try { JSON.parse(f.data); return true; } catch { return false; } }).length}
+                    </Badge>
+                    <Badge variant="secondary" className="text-[10px]">
+                      Text: {ws.frames.filter(f => { try { JSON.parse(f.data); return false; } catch { return true; } }).length}
+                    </Badge>
+                  </div>
+                </div>
+                {/* Duration */}
+                {ws.frames.length >= 2 && (() => {
+                  const first = new Date(ws.frames[0].time).getTime();
+                  const last = new Date(ws.frames[ws.frames.length - 1].time).getTime();
+                  const duration = last - first;
+                  return (
+                    <div className="p-2 bg-muted/20 border border-border rounded">
+                      <div className="text-muted-foreground mb-0.5">Activity Duration</div>
+                      <div className="font-medium">{duration > 1000 ? `${(duration/1000).toFixed(1)}s` : `${duration}ms`}</div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {(ws.frames.length / (duration / 1000)).toFixed(1)} frames/sec
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground py-4">No frame data for statistics</p>
+            )}
           </TabsContent>
 
           <TabsContent value="code" className="mt-2">

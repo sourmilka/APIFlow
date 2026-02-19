@@ -1,10 +1,34 @@
-import { Globe, ArrowRight, Loader2, Settings2, Cookie, ExternalLink, ChevronDown, ChevronUp, Info, Zap, Shield } from 'lucide-react';
+import { Globe, ArrowRight, Loader2, Settings2, Cookie, ExternalLink, ChevronDown, ChevronUp, Info, Zap, Shield, Search, CheckCircle2, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+
+const POPULAR_SITES = [
+  { url: 'https://github.com', label: 'GitHub' },
+  { url: 'https://api.github.com', label: 'GitHub API' },
+  { url: 'https://jsonplaceholder.typicode.com', label: 'JSONPlaceholder' },
+  { url: 'https://pokeapi.co', label: 'PokéAPI' },
+  { url: 'https://reddit.com', label: 'Reddit' },
+  { url: 'https://twitter.com', label: 'Twitter/X' },
+  { url: 'https://youtube.com', label: 'YouTube' },
+  { url: 'https://amazon.com', label: 'Amazon' },
+  { url: 'https://netflix.com', label: 'Netflix' },
+  { url: 'https://discord.com', label: 'Discord' },
+];
+
+const SCAN_STEPS = [
+  { label: 'Launching browser', icon: '🚀' },
+  { label: 'Setting cookies & headers', icon: '🍪' },
+  { label: 'Navigating to page', icon: '🌐' },
+  { label: 'Intercepting API calls', icon: '📡' },
+  { label: 'Capturing WebSockets', icon: '🔌' },
+  { label: 'Scrolling page', icon: '📜' },
+  { label: 'Analyzing responses', icon: '🔍' },
+  { label: 'Building results', icon: '✅' },
+];
 
 export default function ScanDialog({ open, onOpenChange, onScan, loading }) {
   const [url, setUrl] = useState('');
@@ -16,6 +40,26 @@ export default function ScanDialog({ open, onOpenChange, onScan, loading }) {
   const [cookiesInput, setCookiesInput] = useState('');
   const [cookieError, setCookieError] = useState('');
   const [deepScan, setDeepScan] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const filteredSuggestions = useMemo(() => {
+    if (!url.trim() || url.includes('://')) return [];
+    return POPULAR_SITES.filter(s =>
+      s.label.toLowerCase().includes(url.toLowerCase()) || s.url.includes(url.toLowerCase())
+    ).slice(0, 5);
+  }, [url]);
+
+  // Progress simulation during scan
+  const [scanStep, setScanStep] = useState(0);
+  useState(() => {
+    if (!loading) { setScanStep(0); return; }
+    let step = 0;
+    const interval = setInterval(() => {
+      step = Math.min(step + 1, SCAN_STEPS.length - 1);
+      setScanStep(step);
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const validateCookies = (input) => {
     if (!input.trim()) { setCookieError(''); return true; }
@@ -99,7 +143,7 @@ export default function ScanDialog({ open, onOpenChange, onScan, loading }) {
         </DialogHeader>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-4">
+          <div className="flex flex-col items-center justify-center py-8 gap-4">
             <div className="relative">
               <div className="w-16 h-16 rounded-full border-2 border-primary/20" />
               <Loader2 className="w-16 h-16 text-primary animate-spin absolute inset-0" />
@@ -108,10 +152,21 @@ export default function ScanDialog({ open, onOpenChange, onScan, loading }) {
               <p className="text-sm font-medium">Analyzing website...</p>
               <p className="text-xs text-muted-foreground mt-1">Intercepting APIs, WebSockets, and SSE connections</p>
             </div>
-            <div className="flex items-center gap-2 mt-2 text-[11px] text-muted-foreground">
-              <div className="flex items-center gap-1"><Zap className="w-3 h-3 text-emerald-400" /> APIs</div>
-              <div className="flex items-center gap-1"><Globe className="w-3 h-3 text-blue-400" /> WebSockets</div>
-              <div className="flex items-center gap-1"><Shield className="w-3 h-3 text-purple-400" /> Auth</div>
+            {/* Step progress indicator */}
+            <div className="w-full max-w-xs space-y-1.5 mt-2">
+              {SCAN_STEPS.map((step, i) => (
+                <div key={i} className={`flex items-center gap-2 text-[11px] transition-all duration-300 ${
+                  i < scanStep ? 'text-emerald-400' : i === scanStep ? 'text-primary' : 'text-muted-foreground/40'
+                }`}>
+                  <span className="w-4 text-center">
+                    {i < scanStep ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> :
+                     i === scanStep ? <Clock className="w-3.5 h-3.5 animate-pulse text-primary" /> :
+                     <span className="text-[10px]">{step.icon}</span>}
+                  </span>
+                  <span>{step.label}</span>
+                  {i === scanStep && <span className="text-[9px] text-muted-foreground animate-pulse">...</span>}
+                </div>
+              ))}
             </div>
             <div className="flex items-center gap-1 mt-2">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-dot" />
@@ -123,14 +178,35 @@ export default function ScanDialog({ open, onOpenChange, onScan, loading }) {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label htmlFor="url" className="text-xs text-muted-foreground">Website URL</Label>
-              <Input
-                id="url"
-                placeholder="https://example.com"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                className="mt-1.5 bg-background"
-                autoFocus
-              />
+              <div className="relative">
+                <Input
+                  id="url"
+                  placeholder="https://example.com"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                  className="mt-1.5 bg-background"
+                  autoFocus
+                  autoComplete="off"
+                />
+                {showSuggestions && filteredSuggestions.length > 0 && (
+                  <div className="absolute z-50 top-full mt-1 w-full bg-card border border-border rounded-md shadow-lg overflow-hidden animate-slide-up">
+                    {filteredSuggestions.map(site => (
+                      <button
+                        key={site.url}
+                        type="button"
+                        onClick={() => { setUrl(site.url); setShowSuggestions(false); }}
+                        className="w-full text-left px-3 py-2 hover:bg-accent flex items-center gap-2 text-xs transition-colors"
+                      >
+                        <Globe className="w-3 h-3 text-muted-foreground" />
+                        <span className="font-medium">{site.label}</span>
+                        <span className="text-muted-foreground text-[10px] ml-auto">{site.url}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <p className="text-[11px] text-muted-foreground mt-1">
                 We'll intercept all API calls, WebSocket connections, and SSE streams.
               </p>

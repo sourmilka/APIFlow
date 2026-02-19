@@ -77,10 +77,15 @@ export default async function handler(req, res) {
   const sseConnections = [];
   const pageResources = { scripts: 0, stylesheets: 0, images: 0, fonts: 0, media: 0, other: 0 };
   const securityHeaders = {};
+  const redirectChain = [];
   const logs = [];
   let page = null;
   let cdpSession = null;
   const startTime = Date.now();
+
+  // ── Pending API request tracking ──────────────────────
+  let pendingApiCount = 0;
+  let lastApiTime = Date.now();
 
   // Derive the page domain for cross-origin detection
   let pageDomain;
@@ -209,10 +214,19 @@ export default async function handler(req, res) {
 
       const isApiCall = !isStatic && (isFetchOrXHR || isApiSubdomain || isCrossOriginSameRoot || hasApiPattern || isJsonExchange);
 
+      // Track redirects
+      if (request.isNavigationRequest() && request.redirectChain().length > 0) {
+        request.redirectChain().forEach(req => {
+          redirectChain.push({ url: req.url(), status: req.response()?.status() || 0 });
+        });
+      }
+
       if (isApiCall) {
         let parsedUrl;
         try { parsedUrl = new URL(reqUrl); } catch { parsedUrl = null; }
         if (parsedUrl) {
+          pendingApiCount++;
+          lastApiTime = Date.now();
           apiCalls.push({
             id: apiCalls.length + 1, url: reqUrl, method, headers,
             payload: postData || null, type: resourceType,
@@ -293,6 +307,7 @@ export default async function handler(req, res) {
           vary: headers['vary'] || null,
         };
         delete apiCall.startTime;
+        pendingApiCount = Math.max(0, pendingApiCount - 1);
       } catch {
         apiCall.response = {
           status, statusText: response.statusText(), headers,
@@ -303,6 +318,7 @@ export default async function handler(req, res) {
           contentType: headers['content-type'] || ''
         };
         delete apiCall.startTime;
+        pendingApiCount = Math.max(0, pendingApiCount - 1);
       }
     });
 
@@ -318,29 +334,43 @@ export default async function handler(req, res) {
       pageErrors.push({ message: error.message, time: new Date().toISOString() });
     });
 
+    // ── Smart API wait function ────────────────────────────
+    // Waits until: all pending API requests resolve AND no new API requests for 2s
+    // This is far more reliable than waitForNetworkIdle for SPAs with WebSocket connections
+    const waitForApiQuiet = (label, maxWait = 18000) => new Promise(resolve => {
+      const waitStart = Date.now();
+      const minWait = 3000;
+      log('info', `${label}: waiting (pending: ${pendingApiCount}, captured: ${apiCalls.length})`);
+      const check = () => {
+        const elapsed = Date.now() - waitStart;
+        const sinceLast = Date.now() - lastApiTime;
+        if (elapsed >= maxWait) {
+          log('info', `${label}: max wait ${maxWait}ms reached (pending: ${pendingApiCount}, captured: ${apiCalls.length})`);
+          resolve(); return;
+        }
+        if (elapsed >= minWait && pendingApiCount <= 0 && sinceLast >= 2000) {
+          log('info', `${label}: API quiet after ${elapsed}ms (captured: ${apiCalls.length})`);
+          resolve(); return;
+        }
+        setTimeout(check, 300);
+      };
+      setTimeout(check, minWait);
+    });
+
     // ── Navigate to exact URL ─────────────────────────────
     log('info', 'Navigating to page...');
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 40000 });
     const landedUrl = page.url();
     log('info', `DOM loaded. Landed on: ${landedUrl}`);
 
-    // Wait for network to settle (SPA-friendly: 5 seconds for async API calls)
-    try {
-      await page.waitForNetworkIdle({ idleTime: 1500, timeout: 12000 });
-      log('info', 'Network idle reached');
-    } catch {
-      log('info', 'Network idle timeout — page has persistent connections (expected for SPAs)');
-    }
-
-    // Additional wait for late-firing API calls (SPAs fire API calls after render)
-    await new Promise(r => setTimeout(r, 3000));
-    log('info', `After initial wait: ${apiCalls.length} APIs captured so far`);
+    // Smart wait — tracks actual API requests, not general network (WebSocket frames won't interfere)
+    await waitForApiQuiet('Initial load', 18000);
 
     // Scroll to trigger lazy-loaded content
     await page.evaluate(() => {
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     });
-    await new Promise(r => setTimeout(r, 2000));
+    await waitForApiQuiet('After scroll down', 8000);
 
     // Scroll back up
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
@@ -354,16 +384,16 @@ export default async function handler(req, res) {
         await page.evaluate(() => {
           const elements = document.querySelectorAll('button, [role="button"], [data-toggle], a[href="#"], [onclick], .tab, .nav-link, [role="tab"]');
           elements.forEach((el, i) => {
-            if (i < 8) { try { el.click(); } catch {} }
+            if (i < 10) { try { el.click(); } catch {} }
           });
         });
-        await new Promise(r => setTimeout(r, 3000));
-        log('info', `After deep scan clicks: ${apiCalls.length} APIs captured`);
+        await waitForApiQuiet('After deep scan', 8000);
       } catch { /* silently continue */ }
     }
 
-    // Final wait for any remaining API calls
-    await new Promise(r => setTimeout(r, 1000));
+    // Final wait for stragglers
+    await new Promise(r => setTimeout(r, 2000));
+    log('info', `Final: ${apiCalls.length} APIs, ${pendingApiCount} still pending`);
 
     // ── Get page info ─────────────────────────────────────
     const pageInfo = await page.evaluate(() => ({
@@ -378,6 +408,13 @@ export default async function handler(req, res) {
     // Add the final URL in case of SPA redirect
     pageInfo.landedUrl = landedUrl;
     pageInfo.requestedUrl = url;
+
+    // ── Capture page cookies ──────────────────────────────
+    let pageCookies = [];
+    try {
+      pageCookies = await page.cookies();
+      log('info', `Captured ${pageCookies.length} page cookies`);
+    } catch (e) { log('info', 'Cookie capture skipped: ' + e.message); }
 
     if (cdpSession) await cdpSession.detach().catch(() => {});
     await page.close().catch(() => {});
@@ -416,6 +453,8 @@ export default async function handler(req, res) {
       securityHeaders,
       pageInfo,
       pageResources,
+      pageCookies: pageCookies.map(c => ({ name: c.name, value: c.value?.substring(0, 100), domain: c.domain, path: c.path, secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite, expires: c.expires })),
+      redirectChain,
       consoleMessages: consoleMessages.slice(0, 50),
       pageErrors,
       duration,

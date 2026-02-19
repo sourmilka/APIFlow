@@ -1,7 +1,7 @@
 export const BRAND = {
   name: 'APIFlow',
   tagline: 'Discover & Analyze APIs from any website',
-  version: '4.0.0',
+  version: '5.0.0',
   url: 'https://apiflow-umber.vercel.app',
 };
 

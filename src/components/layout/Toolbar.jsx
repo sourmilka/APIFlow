@@ -1,4 +1,4 @@
-import { Search, RotateCcw, Keyboard, Radio, Activity, BarChart3, Shield, Terminal, SortAsc, SortDesc } from 'lucide-react';
+import { Search, RotateCcw, Keyboard, Radio, Activity, BarChart3, Shield, Terminal, SortAsc, SortDesc, ClipboardList, Layers, Share2, Cookie } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +10,8 @@ export default function Toolbar({
   activeTab, onTabChange, wsCount, sseCount,
   sortBy, onSortChange, filterStatus, onFilterStatus,
   onShowAnalytics, onShowSecurity, onShowLogs,
+  onCopyAll, groupByHost, onToggleGroupByHost,
+  onShowWaterfall, onShowCookies, onShareSession,
 }) {
   const methods = ['ALL', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
   const statusFilters = ['ALL', '2xx', '3xx', '4xx', '5xx'];
@@ -65,6 +67,13 @@ export default function Toolbar({
           <BarChart3 className="w-3.5 h-3.5" />
         </button>
         <button
+          onClick={onShowWaterfall}
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          title="Request Waterfall"
+        >
+          <Activity className="w-3.5 h-3.5" />
+        </button>
+        <button
           onClick={onShowSecurity}
           className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           title="Security Analysis"
@@ -72,11 +81,26 @@ export default function Toolbar({
           <Shield className="w-3.5 h-3.5" />
         </button>
         <button
+          onClick={onShowCookies}
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          title="Page Cookies"
+        >
+          <Cookie className="w-3.5 h-3.5" />
+        </button>
+        <button
           onClick={onShowLogs}
           className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           title="Debug Logs"
         >
           <Terminal className="w-3.5 h-3.5" />
+        </button>
+        <div className="w-px h-4 bg-border" />
+        <button
+          onClick={onShareSession}
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          title="Share Session"
+        >
+          <Share2 className="w-3.5 h-3.5" />
         </button>
       </div>
 
@@ -145,6 +169,26 @@ export default function Toolbar({
           </button>
 
           <div className="flex-1" />
+
+          {/* Extra actions */}
+          <button
+            onClick={onToggleGroupByHost}
+            className={`flex items-center gap-1 px-1.5 py-1 text-[10px] rounded border transition-colors ${
+              groupByHost ? 'bg-primary/15 text-primary border-primary/30' : 'text-muted-foreground border-transparent hover:bg-accent'
+            }`}
+            title="Group by Host"
+          >
+            <Layers className="w-3 h-3" />
+            Group
+          </button>
+          <button
+            onClick={onCopyAll}
+            className="flex items-center gap-1 px-1.5 py-1 text-[10px] text-muted-foreground hover:text-foreground rounded hover:bg-accent transition-colors"
+            title="Copy all endpoint URLs"
+          >
+            <ClipboardList className="w-3 h-3" />
+            Copy All
+          </button>
 
           {/* Actions */}
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onRescan} title="Rescan (Ctrl+R)">
