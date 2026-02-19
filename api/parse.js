@@ -114,10 +114,99 @@ export default async function handler(req, res) {
     });
     log('info', 'Page created');
 
-    // ── CDP Session for WebSocket capture ─────────────────
+    // ── CDP Session for WebSocket + backup network capture ──
     try {
       cdpSession = await page.createCDPSession();
       await cdpSession.send('Network.enable');
+
+      // CDP backup: catch requests that page.on('request') might miss
+      // (Web Workers, iframes, detached contexts, etc.)
+      const cdpSeenUrls = new Set();
+      cdpSession.on('Network.requestWillBeSent', (params) => {
+        const reqUrl = params.request?.url;
+        if (!reqUrl || cdpSeenUrls.has(reqUrl)) return;
+        const method = params.request?.method || 'GET';
+        const headers = params.request?.headers || {};
+
+        let reqHostname = '';
+        try { reqHostname = new URL(reqUrl).hostname; } catch { return; }
+        const reqRootDomain = reqHostname.split('.').slice(-2).join('.');
+
+        const isApiSubdomain = /^api\d*\./.test(reqHostname);
+        const isCrossOriginSameRoot = reqRootDomain === rootDomain && reqHostname !== pageDomain && reqHostname !== `www.${pageDomain}`;
+        const hasApiPattern = reqUrl.includes('/api/') || reqUrl.includes('/v1/') || reqUrl.includes('/v2/') ||
+          reqUrl.includes('/v3/') || reqUrl.includes('/v4/') || reqUrl.includes('/graphql') ||
+          reqUrl.includes('/rest/') || reqUrl.includes('/rpc/');
+        const isJsonExchange = headers['Content-Type']?.includes('application/json') ||
+          headers['Accept']?.includes('application/json');
+        const type = params.type?.toLowerCase() || '';
+        const isFetchOrXHR = type === 'xhr' || type === 'fetch';
+
+        const isStatic = SKIP_EXTENSIONS.test(reqUrl) || SKIP_DOMAINS.test(reqUrl);
+        const isApiCall = !isStatic && (isFetchOrXHR || isApiSubdomain || isCrossOriginSameRoot || hasApiPattern || isJsonExchange);
+
+        if (isApiCall) {
+          // Only add if not already captured by request interception
+          const alreadyCaptured = apiCalls.some(c => c.url === reqUrl);
+          if (!alreadyCaptured) {
+            cdpSeenUrls.add(reqUrl);
+            let parsedUrl;
+            try { parsedUrl = new URL(reqUrl); } catch { return; }
+            pendingApiCount++;
+            lastApiTime = Date.now();
+            log('info', `CDP backup captured: ${method} ${reqUrl.substring(0, 120)}`);
+            apiCalls.push({
+              id: apiCalls.length + 1, url: reqUrl, method, headers,
+              payload: params.request?.postData || null,
+              type: type || 'cdp',
+              timestamp: new Date().toISOString(), startTime: Date.now(),
+              authentication: helpers.detectAuthentication(headers),
+              explanations: helpers.explainAPI(reqUrl, method, headers, params.request?.postData),
+              graphql: reqUrl.includes('graphql') ? helpers.parseGraphQL(params.request?.postData) : null,
+              hostname: parsedUrl.hostname,
+              pathname: parsedUrl.pathname,
+              queryParams: Object.fromEntries(parsedUrl.searchParams.entries()),
+              protocol: parsedUrl.protocol,
+              apiVersion: helpers.detectApiVersion(reqUrl),
+              contentType: headers['Content-Type'] || null,
+              category: helpers.categorizeEndpoint(reqUrl, method),
+              origin: headers['Origin'] || null,
+              referer: headers['Referer'] || null,
+              isCrossOrigin: reqHostname !== pageDomain,
+              source: 'cdp-backup',
+            });
+          }
+        }
+      });
+
+      // CDP backup: catch responses for CDP-captured requests
+      cdpSession.on('Network.responseReceived', (params) => {
+        const respUrl = params.response?.url;
+        if (!respUrl) return;
+        const apiCall = apiCalls.find(c => c.url === respUrl && c.source === 'cdp-backup' && !c.response);
+        if (!apiCall) return;
+        apiCall.response = {
+          status: params.response.status,
+          statusText: params.response.statusText || '',
+          headers: params.response.headers || {},
+          size: params.response.headers?.['content-length'] || 'unknown',
+          responseTime: Date.now() - apiCall.startTime,
+          contentType: params.response.headers?.['content-type'] || '',
+          cors: {
+            allowOrigin: params.response.headers?.['access-control-allow-origin'] || null,
+            allowMethods: params.response.headers?.['access-control-allow-methods'] || null,
+            allowHeaders: params.response.headers?.['access-control-allow-headers'] || null,
+            credentials: params.response.headers?.['access-control-allow-credentials'] || null,
+            maxAge: params.response.headers?.['access-control-max-age'] || null,
+          },
+          cacheControl: params.response.headers?.['cache-control'] || null,
+          server: params.response.headers?.['server'] || null,
+          cfRay: params.response.headers?.['cf-ray'] || null,
+          vary: params.response.headers?.['vary'] || null,
+        };
+        delete apiCall.startTime;
+        pendingApiCount = Math.max(0, pendingApiCount - 1);
+      });
 
       cdpSession.on('Network.webSocketCreated', (params) => {
         log('info', `WebSocket created: ${params.url}`);
@@ -436,8 +525,16 @@ export default async function handler(req, res) {
       } catch { /* silently continue */ }
     }
 
-    // 5. Final wait for any straggler requests
-    await new Promise(r => setTimeout(r, 2500));
+    // 5. Second scroll pass — some endpoints fire only after revisiting sections
+    await page.evaluate(async () => {
+      window.scrollTo({ top: document.body.scrollHeight / 2, behavior: 'smooth' });
+      await new Promise(r => setTimeout(r, 500));
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    });
+    await waitForApiQuiet('Second scroll pass', 5000);
+
+    // 6. Final wait for any straggler requests
+    await new Promise(r => setTimeout(r, 3000));
     log('info', `Final: ${apiCalls.length} APIs, ${pendingApiCount} still pending`);
 
     // ── Get page info ─────────────────────────────────────
