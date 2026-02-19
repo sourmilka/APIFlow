@@ -29,7 +29,7 @@ export default function LogViewer({ serverLogs = [] }) {
   // Merge frontend and server logs
   const allLogs = [
     ...logs.map(l => ({ ...l, source: 'client' })),
-    ...serverLogs.map(l => ({ ...l, id: l.time + Math.random(), source: 'server', timestamp: new Date().toISOString() }))
+    ...serverLogs.map((l, i) => ({ ...l, id: `srv-${i}-${l.time || 0}`, source: 'server', timestamp: new Date().toISOString() }))
   ];
 
   const filtered = filter ? allLogs.filter(l => l.level === filter) : allLogs;

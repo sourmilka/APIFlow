@@ -20,8 +20,8 @@ export async function getBrowser() {
     const executablePath = await chromium.executablePath();
     console.log('[chromium] Executable path:', executablePath);
     const browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: { width: 1280, height: 720 },
+      args: [...chromium.args, '--disable-features=site-per-process'],
+      defaultViewport: { width: 1440, height: 900 },
       executablePath,
       headless: chromium.headless,
       ignoreHTTPSErrors: true,
@@ -35,14 +35,33 @@ export async function getBrowser() {
 
 export async function createPage(browser, options = {}) {
   const page = await browser.newPage();
-  await page.setUserAgent(options.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-  if (options.headers) await page.setExtraHTTPHeaders(options.headers);
 
-  // Handle cookies - supports Cookie Editor format (array of objects) or simple string
+  // Set realistic user agent
+  await page.setUserAgent(options.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36');
+
+  // Accept language and other headers that real browsers send
+  const defaultHeaders = {
+    'accept-language': 'en-US,en;q=0.9',
+    'sec-ch-ua': '"Google Chrome";v="145", "Not:A-Brand";v="99", "Chromium";v="145"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+  };
+  await page.setExtraHTTPHeaders({ ...defaultHeaders, ...(options.headers || {}) });
+
+  // Disable service workers to avoid caching issues on SPAs
+  await page.evaluateOnNewDocument(() => {
+    // Prevent service worker registration so fresh API calls are intercepted
+    if (navigator.serviceWorker) {
+      Object.defineProperty(navigator, 'serviceWorker', {
+        get: () => ({ register: () => Promise.resolve(), ready: Promise.resolve() })
+      });
+    }
+  });
+
+  // Handle cookies — supports Cookie Editor format or string
   if (options.cookies) {
     try {
       if (Array.isArray(options.cookies)) {
-        // Cookie Editor format: [{name, value, domain, path, httpOnly, secure, sameSite, expires}]
         const validCookies = options.cookies.filter(c => c.name && c.value).map(c => ({
           name: c.name,
           value: c.value,
@@ -58,7 +77,6 @@ export async function createPage(browser, options = {}) {
           console.log(`[chromium] Set ${validCookies.length} cookies`);
         }
       } else if (typeof options.cookies === 'string') {
-        // Simple "name=value; name=value" format
         const cookieArray = options.cookies.split(';').map(c => {
           const [name, ...valueParts] = c.trim().split('=');
           return { name: name?.trim(), value: valueParts.join('=')?.trim(), domain: new URL(options.url).hostname };
