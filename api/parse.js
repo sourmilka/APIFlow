@@ -88,11 +88,11 @@ export default async function handler(req, res) {
     });
 
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 40000 });
-    await page.waitForTimeout(2000);
+    await new Promise(r => setTimeout(r, 2000));
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await page.waitForTimeout(1500);
+    await new Promise(r => setTimeout(r, 1500));
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.waitForTimeout(500);
+    await new Promise(r => setTimeout(r, 500));
     await page.close().catch(() => {});
     page = null;
 
