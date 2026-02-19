@@ -1,5 +1,10 @@
-import { getBrowser, createPage } from './utils/chromium.js';
-import { detectAuthentication, explainAPI, parseGraphQL, parseRateLimitHeaders } from './utils/helpers.js';
+// Dynamic imports to work with Vercel's file tracer
+let chromUtils, helpers;
+
+async function ensureImports() {
+  if (!chromUtils) chromUtils = await import('./utils/chromium.js');
+  if (!helpers) helpers = await import('./utils/helpers.js');
+}
 
 function isValidUrl(str) {
   try {
@@ -31,8 +36,9 @@ export default async function handler(req, res) {
   console.log(`[parse] Start: ${url} (${sessionId})`);
 
   try {
-    const browser = await getBrowser();
-    page = await createPage(browser, { url, userAgent, headers: customHeaders, cookies });
+    await ensureImports();
+    const browser = await chromUtils.getBrowser();
+    page = await chromUtils.createPage(browser, { url, userAgent, headers: customHeaders, cookies });
     await page.setRequestInterception(true);
 
     page.on('request', (request) => {
@@ -52,9 +58,9 @@ export default async function handler(req, res) {
           id: apiCalls.length + 1, url: reqUrl, method, headers,
           payload: postData || null, type: resourceType,
           timestamp: new Date().toISOString(), startTime: Date.now(),
-          authentication: detectAuthentication(headers),
-          explanations: explainAPI(reqUrl, method, headers, postData),
-          graphql: reqUrl.includes('graphql') ? parseGraphQL(postData) : null
+          authentication: helpers.detectAuthentication(headers),
+          explanations: helpers.explainAPI(reqUrl, method, headers, postData),
+          graphql: reqUrl.includes('graphql') ? helpers.parseGraphQL(postData) : null
         });
       }
       request.continue();
@@ -64,7 +70,7 @@ export default async function handler(req, res) {
       const respUrl = response.url();
       const status = response.status();
       const headers = response.headers();
-      const rateLimitInfo = parseRateLimitHeaders(headers);
+      const rateLimitInfo = helpers.parseRateLimitHeaders(headers);
       const apiCall = apiCalls.find(c => c.url === respUrl && !c.response);
       if (!apiCall) return;
       try {
