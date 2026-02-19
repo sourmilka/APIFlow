@@ -1,13 +1,12 @@
 {
   "name": "apiflow",
-  "version": "2.0.0",
-  "description": "APIFlow - Professional API Discovery & Analysis Platform. Discover, analyze, and master APIs from any website with advanced parsing, real-time monitoring, and intelligent detection.",
+  "version": "3.0.0",
+  "description": "APIFlow - Discover & Analyze APIs from any website. Intercepts network requests and documents endpoints with auth, headers, and response data.",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "node server/index.js",
     "vercel-build": "vite build"
   },
   "dependencies": {
@@ -26,23 +25,13 @@
     "@radix-ui/react-switch": "^1.0.3",
     "@radix-ui/react-tabs": "^1.0.4",
     "@sparticuz/chromium": "^131.0.0",
-    "@supabase/supabase-js": "^2.39.0",
-    "axios": "^1.6.0",
-    "cheerio": "^1.0.0-rc.12",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
-    "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "express-rate-limit": "^8.1.0",
-    "helmet": "^8.1.0",
     "lucide-react": "^0.294.0",
     "mongodb": "^6.3.0",
     "puppeteer-core": "^23.5.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-window": "^1.8.10",
-    "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1",
     "tailwind-merge": "^2.0.0"
   },
   "devDependencies": {

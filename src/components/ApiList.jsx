@@ -1,75 +1,106 @@
-import React, { useCallback, forwardRef, useImperativeHandle, useRef, memo } from 'react';
-import { FixedSizeList } from 'react-window';
-import ApiListItem from './ApiListItem';
+import { Copy, ExternalLink, Lock, ChevronRight, Zap } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { METHOD_COLORS, statusClass } from '@/constants/brand';
 
-const ApiList = forwardRef(({ apis, selectedApi, onSelectApi, onTest, onCopy, onExport, height = 600 }, ref) => {
-  const listRef = useRef(null);
+function truncateUrl(url, max = 70) {
+  if (url.length <= max) return url;
+  try {
+    const u = new URL(url);
+    const path = u.pathname + u.search;
+    if (path.length > max - 20) return u.hostname + path.substring(0, max - 20) + '...';
+    return url.substring(0, max) + '...';
+  } catch { return url.substring(0, max) + '...'; }
+}
 
-  // Expose scrollToItem method to parent components
-  useImperativeHandle(ref, () => ({
-    scrollToItem: (index, align = 'center') => {
-      if (listRef.current) {
-        listRef.current.scrollToItem(index, align);
-      }
-    }
-  }));
-
-  // Row renderer for react-window
-  const Row = useCallback(({ index, style }) => {
-    const api = apis[index];
-    const isSelected = selectedApi?.id === api.id;
-    
+export default function ApiList({ apis, selectedId, onSelect, onCopy }) {
+  if (!apis.length) {
     return (
-      <ApiListItem
-        api={api}
-        isSelected={isSelected}
-        onSelectApi={onSelectApi}
-        onTest={onTest}
-        onCopy={onCopy}
-        onExport={onExport}
-        style={style}
-      />
-    );
-  }, [apis, selectedApi, onSelectApi, onTest, onCopy, onExport]);
-
-  // Empty state
-  if (apis.length === 0) {
-    return (
-      <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-        <p>No APIs found matching your filters</p>
+      <div className="flex-1 flex items-center justify-center p-8 text-muted-foreground text-sm">
+        No endpoints match your filters.
       </div>
     );
   }
 
   return (
-    <div className="pr-2">
-      <FixedSizeList
-        ref={listRef}
-        height={height}
-        itemCount={apis.length}
-        itemSize={110}
-        width="100%"
-        overscanCount={5}
-        className="ReactVirtualized__List"
-      >
-        {Row}
-      </FixedSizeList>
-    </div>
+    <ScrollArea className="flex-1">
+      <div className="divide-y divide-border">
+        {apis.map((api) => {
+          const isSelected = selectedId === api.id;
+          const status = api.response?.status;
+          return (
+            <button
+              key={api.id}
+              onClick={() => onSelect(api.id)}
+              className={`w-full text-left px-4 py-3 transition-colors hover:bg-accent/50 group ${
+                isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : 'border-l-2 border-l-transparent'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {/* Method badge */}
+                <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${METHOD_COLORS[api.method] || 'method-get'}`}>
+                  {api.method}
+                </span>
+
+                {/* URL */}
+                <span className="text-xs font-mono truncate flex-1 text-foreground/80">
+                  {truncateUrl(api.url)}
+                </span>
+
+                {/* Icons */}
+                {api.authentication && (
+                  <Lock className="w-3 h-3 text-amber-400 shrink-0" title="Authenticated" />
+                )}
+                {api.graphql && (
+                  <Zap className="w-3 h-3 text-purple-400 shrink-0" title="GraphQL" />
+                )}
+
+                {/* Status */}
+                {status && (
+                  <span className={`text-[11px] font-semibold shrink-0 ${statusClass(status)}`}>
+                    {status}
+                  </span>
+                )}
+
+                {/* Response time */}
+                {api.response?.responseTime && (
+                  <span className="text-[10px] text-muted-foreground shrink-0">
+                    {api.response.responseTime}ms
+                  </span>
+                )}
+
+                {/* Actions */}
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onCopy(api.url); }}
+                    className="p-1 rounded hover:bg-muted"
+                    title="Copy URL"
+                  >
+                    <Copy className="w-3 h-3 text-muted-foreground" />
+                  </button>
+                  <a
+                    href={api.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-1 rounded hover:bg-muted"
+                    title="Open in browser"
+                  >
+                    <ExternalLink className="w-3 h-3 text-muted-foreground" />
+                  </a>
+                </div>
+
+                <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform shrink-0 ${isSelected ? 'rotate-90' : ''}`} />
+              </div>
+
+              {/* Explanation snippet */}
+              {api.explanations?.[0] && (
+                <p className="text-[11px] text-muted-foreground mt-1 truncate pl-11">{api.explanations[0]}</p>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </ScrollArea>
   );
-});
-
-ApiList.displayName = 'ApiList';
-
-const areEqual = (prevProps, nextProps) => {
-  return (
-    prevProps.apis === nextProps.apis &&
-    prevProps.selectedApi?.id === nextProps.selectedApi?.id &&
-    prevProps.onSelectApi === nextProps.onSelectApi &&
-    prevProps.onTest === nextProps.onTest &&
-    prevProps.onCopy === nextProps.onCopy &&
-    prevProps.onExport === nextProps.onExport &&
-    prevProps.height === nextProps.height
-  );
-};
-
-export default memo(ApiList, areEqual);
+}

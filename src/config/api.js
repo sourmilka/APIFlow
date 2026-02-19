@@ -1,28 +1,26 @@
-/**
- * API Configuration - Environment-aware endpoint
- */
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
-// Determine the API base URL based on environment
-export const getApiBaseUrl = () => {
-  // Check if we're in development (localhost)
-  if (import.meta.env.DEV || window.location.hostname === 'localhost') {
-    return 'http://localhost:3001';
-  }
-  
-  // In production (Vercel), use relative URLs to hit the same domain's /api routes
-  return '';
+export const endpoints = {
+  parse: `${API_BASE}/api/parse`,
+  health: `${API_BASE}/api/health`,
+  session: (id) => `${API_BASE}/api/session/${id}`,
 };
 
-export const API_BASE_URL = getApiBaseUrl();
+export async function apiPost(url, body, signal) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || data.error || `Request failed (${res.status})`);
+  return data;
+}
 
-// API Endpoints
-export const API_ENDPOINTS = {
-  PARSE: `${API_BASE_URL}/api/parse`,
-  SESSION: (sessionId) => `${API_BASE_URL}/api/session/${sessionId}`,
-  CANCEL: (sessionId) => `${API_BASE_URL}/api/cancel/${sessionId}`,
-  DNS_CHECK: `${API_BASE_URL}/api/dns/check`,
-  PARSING_PROFILES: `${API_BASE_URL}/api/parsing/profiles`,
-  HEALTH: `${API_BASE_URL}/api/health`,
-};
-
-export default API_ENDPOINTS;
+export async function apiGet(url, signal) {
+  const res = await fetch(url, { signal });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || data.error || `Request failed (${res.status})`);
+  return data;
+}

@@ -1,129 +1,77 @@
-# API Parser Pro - Professional Edition v3.0
+# APIFlow
 
-A **FULLY PROFESSIONAL** web application that analyzes websites and extracts ALL API information including HTTP requests, WebSocket connections, GraphQL operations, and authentication details.
+**Discover & Analyze APIs from any website.**
 
-## 🎯 Professional Features
+APIFlow visits any URL in a headless browser, intercepts every network request, and surfaces all API endpoints — complete with authentication detection, GraphQL parsing, rate limit headers, and response data.
 
-### **Core Capabilities**
-- 🔍 **Automatic API Discovery**: Parse any website to find all endpoints
-- 🔌 **WebSocket Monitoring**: Track real-time connections and messages
-- 🔷 **GraphQL Parser**: Analyze queries, mutations, and subscriptions
-- 🔐 **Authentication Detection**: Identify tokens, API keys, and cookies
-- 📊 **Performance Tracking**: Measure response times and identify bottlenecks
-- 💬 **API Explanations**: Understand what each API does
+## Live Demo
 
-### **Testing & Development**
-- ▶️ **API Testing**: Replay and test discovered APIs
-- ✏️ **Request Editing**: Modify requests before testing
-- 🔑 **Custom Headers**: Add authentication and custom headers
-- 🍪 **Cookie Support**: Parse authenticated websites
-- 📤 **Export Options**: JSON, CSV, and cURL formats
+**[api-flow-virid.vercel.app](https://api-flow-virid.vercel.app)**
 
-### **Advanced Features**
-- ⏸️ **Cancel Parsing**: Stop long-running operations
-- 📈 **Real-time Progress**: Live updates during parsing
-- 💾 **Session History**: Auto-save and reload analyses
-- 🔍 **Advanced Filtering**: Search and filter by method, status, domain
-- 🌙 **Dark Mode**: Professional dark theme
-- 📊 **Statistics Dashboard**: Visual insights and metrics
+## Features
 
-## Installation
-
-```bash
-npm install
-```
-
-## Usage
-
-### Development Mode
-
-1. Start the backend server:
-```bash
-npm run server
-```
-
-2. In a new terminal, start the frontend:
-```bash
-npm run dev
-```
-
-3. Open your browser to `http://localhost:5173`
-
-### Production Build
-
-```bash
-npm run build
-npm run preview
-```
-
-## How It Works
-
-1. Enter a website URL (e.g., https://www.kolanasolana.com/app/dashboard)
-2. The application will:
-   - Load the website using headless browser
-   - Intercept all network requests
-   - Capture API endpoints, methods, headers, and responses
-   - Display results in an organized, searchable format
+- **API Discovery** — Headless Chromium intercepts XHR/Fetch requests in real-time
+- **Auth Detection** — Identifies Bearer tokens, API keys, cookies, and custom auth
+- **GraphQL Support** — Parses operations, variables, and fields
+- **Response Capture** — Full JSON responses with status codes and timing
+- **Rate Limit Analysis** — Detects `X-RateLimit-*` headers
+- **Session History** — LocalStorage-backed scan history with quick recall
+- **Export** — Download full scan results as JSON
+- **Keyboard Shortcuts** — `Ctrl+N` new scan, `Ctrl+E` export, `Ctrl+R` rescan
 
 ## Tech Stack
 
-### Production (Serverless)
-- **Frontend**: React, TailwindCSS, Vite
-- **Backend**: Vercel Serverless Functions
-- **Database**: MongoDB Atlas
-- **Realtime**: Supabase
-- **Parser**: Puppeteer + Chromium Layer
-- **Hosting**: Vercel Edge Network
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 18, Vite 5, Tailwind CSS, shadcn/ui |
+| Backend | Vercel Serverless Functions |
+| Parser | Puppeteer + @sparticuz/chromium |
+| Storage | MongoDB (optional), LocalStorage |
 
-### Development (Local)
-- **Backend**: Node.js, Express
-- **Parser**: Puppeteer (headless Chrome)
-- **Icons**: Lucide React
+## Project Structure
 
-## 🚀 Deployment
+```
+src/
+  App.jsx                  # Main application
+  components/
+    layout/Sidebar.jsx     # Session history sidebar
+    layout/Toolbar.jsx     # Filter bar and actions
+    ApiList.jsx            # Endpoint list
+    ApiDetailPanel.jsx     # Selected endpoint details
+    ScanDialog.jsx         # URL input + scanning state
+    StatsBar.jsx           # Scan statistics
+    EmptyState.jsx         # Landing/empty state
+    ShortcutsDialog.jsx    # Keyboard shortcuts
+    ToastContainer.jsx     # Toast notifications
+    ui/                    # shadcn/ui primitives
+  hooks/
+    useToast.js            # Toast state management
+    useKeyboardShortcuts.js
+  config/api.js            # API endpoint config
+  constants/brand.js       # Brand constants + session storage
 
-### Quick Deploy (5 minutes)
-See **QUICK_DEPLOY.md** for step-by-step instructions.
+api/
+  parse.js                 # Core: URL → headless browser → intercept APIs
+  health.js                # Health check endpoint
+  session/[sessionId].js   # Session retrieval
+  utils/chromium.js        # Browser launcher for Vercel
+  utils/helpers.js         # Auth detection, GraphQL parsing
+  config/mongodb.js        # MongoDB connection
+```
+
+## Local Development
 
 ```bash
-# 1. Install dependencies
 npm install
-
-# 2. Build
-npm run build
-
-# 3. Push to GitHub
-git push origin main
-
-# 4. Deploy to Vercel
-# Add environment variables in Vercel Dashboard
-# Click Deploy
+npm run dev
 ```
 
-### Detailed Guides
-- 📖 **QUICK_DEPLOY.md** - Fast deployment guide
-- 📚 **DEPLOYMENT.md** - Complete setup documentation
-- ✅ **DEPLOY_CHECKLIST.md** - Step-by-step checklist
+## Deployment
 
-### Live Demo
-🌐 Production: https://api-flow.vercel.app
+Deployed on **Vercel** with serverless functions for Puppeteer parsing.
 
-## 🔧 Configuration
-
-All configuration is done via environment variables. See `.env.example` for required variables:
-- MongoDB Atlas connection
-- Supabase credentials
-- API URLs
-
-## 📊 Architecture
-
-**Serverless Architecture**:
-```
-User Request → Vercel Edge → Serverless Function → Puppeteer/Chromium
-                                    ↓
-                              MongoDB Atlas (Sessions)
-                                    ↓
-                              Supabase (Realtime Updates)
+```bash
+vercel --prod
 ```
 
 ## License
