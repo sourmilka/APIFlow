@@ -366,33 +366,78 @@ export default async function handler(req, res) {
     // Smart wait — tracks actual API requests, not general network (WebSocket frames won't interfere)
     await waitForApiQuiet('Initial load', 18000);
 
-    // Scroll to trigger lazy-loaded content
-    await page.evaluate(() => {
-      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    // ── Interaction phase: scroll + click to trigger lazy API calls ──
+
+    // 1. Scroll down slowly (triggers IntersectionObserver / scroll-based lazy loads)
+    await page.evaluate(async () => {
+      const totalHeight = document.body.scrollHeight;
+      const step = Math.max(300, Math.floor(totalHeight / 5));
+      for (let y = 0; y < totalHeight; y += step) {
+        window.scrollTo({ top: y, behavior: 'smooth' });
+        await new Promise(r => setTimeout(r, 400));
+      }
+      window.scrollTo({ top: totalHeight, behavior: 'smooth' });
     });
     await waitForApiQuiet('After scroll down', 8000);
 
-    // Scroll back up
+    // 2. Click tabs, nav items, panels — catches section-specific API calls (e.g. KOLs tab)
+    log('info', 'Clicking interactive elements (tabs, nav, buttons)...');
+    try {
+      await page.evaluate(() => {
+        const selectors = [
+          '[role="tab"]', '.tab', '.nav-link', '.nav-item', '[data-tab]', '[data-toggle="tab"]',
+          '[role="button"]', 'button:not([type="submit"])',
+          'a[href="#"]', 'a[href^="#"]', '[onclick]', '[data-toggle]',
+          '.accordion-header', '.collapse-toggle', '[aria-expanded]',
+          '[class*="tab"]', '[class*="Tab"]', '[class*="nav"]', '[class*="Nav"]',
+          '[class*="menu"]', '[class*="Menu"]', '[class*="panel"]', '[class*="Panel"]',
+          '[class*="filter"]', '[class*="Filter"]', '[class*="sort"]', '[class*="Sort"]',
+        ];
+        const seen = new Set();
+        const elements = [];
+        for (const sel of selectors) {
+          try {
+            document.querySelectorAll(sel).forEach(el => {
+              const key = el.tagName + el.textContent?.substring(0, 30) + el.className?.substring?.(0, 30);
+              if (!seen.has(key) && el.offsetWidth > 0 && el.offsetHeight > 0) {
+                seen.add(key);
+                elements.push(el);
+              }
+            });
+          } catch {}
+        }
+        // Click up to 25 unique visible elements with small delay between clicks
+        elements.slice(0, 25).forEach((el, i) => {
+          setTimeout(() => { try { el.click(); } catch {} }, i * 100);
+        });
+      });
+      await waitForApiQuiet('After element clicks', 8000);
+    } catch { /* silently continue */ }
+
+    // 3. Scroll back to top
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
     await new Promise(r => setTimeout(r, 1500));
-    log('info', `After scroll: ${apiCalls.length} APIs captured`);
+    log('info', `After interaction: ${apiCalls.length} APIs captured`);
 
-    // Deep scan: click interactive elements
+    // 4. Deep scan: additional aggressive clicking
     if (options.deepScan) {
-      log('info', 'Deep scan: clicking interactive elements...');
+      log('info', 'Deep scan: aggressive interaction...');
       try {
+        // Click any remaining interactive elements not yet clicked
         await page.evaluate(() => {
-          const elements = document.querySelectorAll('button, [role="button"], [data-toggle], a[href="#"], [onclick], .tab, .nav-link, [role="tab"]');
-          elements.forEach((el, i) => {
-            if (i < 10) { try { el.click(); } catch {} }
+          const all = document.querySelectorAll('a, button, [role="button"], [role="tab"], [role="menuitem"], [role="link"], details > summary');
+          all.forEach((el, i) => {
+            if (i < 15 && el.offsetWidth > 0 && el.offsetHeight > 0) {
+              setTimeout(() => { try { el.click(); } catch {} }, i * 150);
+            }
           });
         });
         await waitForApiQuiet('After deep scan', 8000);
       } catch { /* silently continue */ }
     }
 
-    // Final wait for stragglers
-    await new Promise(r => setTimeout(r, 2000));
+    // 5. Final wait for any straggler requests
+    await new Promise(r => setTimeout(r, 2500));
     log('info', `Final: ${apiCalls.length} APIs, ${pendingApiCount} still pending`);
 
     // ── Get page info ─────────────────────────────────────
