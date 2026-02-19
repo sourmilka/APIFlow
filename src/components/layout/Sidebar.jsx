@@ -4,7 +4,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { BRAND } from '@/constants/brand';
 
-export default function Sidebar({ sessions, activeSessionId, collapsed, onToggle, onSelect, onNew, onDelete }) {
+export default function Sidebar({ sessions, activeSessionId, collapsed, onToggle, onSelect, onNew, onDelete, onRename }) {
   return (
     <aside className={`h-screen bg-card border-r border-border flex flex-col transition-all duration-300 ${collapsed ? 'w-[52px]' : 'w-64'}`}>
       {/* Header */}
@@ -67,8 +67,8 @@ export default function Sidebar({ sessions, activeSessionId, collapsed, onToggle
               ) : (
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 flex-1">
-                    <div className="text-xs font-medium truncate">
-                      {(() => { try { return new URL(s.url).hostname; } catch { return s.url; } })()}
+                    <div className="text-xs font-medium truncate" onDoubleClick={(e) => { if (onRename) { e.stopPropagation(); const name = prompt('Rename session:', s.name || ''); if (name !== null) onRename(s.sessionId, name); } }}>
+                      {s.name || (() => { try { return new URL(s.url).hostname; } catch { return s.url; } })()}
                     </div>
                     <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
                       <Clock className="w-2.5 h-2.5" />

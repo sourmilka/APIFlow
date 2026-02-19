@@ -1,10 +1,11 @@
-import { X, Copy, ExternalLink, Lock, Zap, Clock, FileJson, ArrowDownToLine, AlertTriangle } from 'lucide-react';
+import { X, Copy, ExternalLink, Lock, Zap, Clock, FileJson, ArrowDownToLine, AlertTriangle, Code2, Shield, Globe } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { METHOD_COLORS, statusClass } from '@/constants/brand';
+import CodeGenerator from './CodeGenerator';
 
 function JsonBlock({ data, label }) {
   if (!data) return null;
@@ -31,6 +32,38 @@ function HeadersTable({ headers }) {
           <span className="font-mono text-foreground/70 break-all">{v}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function CorsInfo({ cors }) {
+  if (!cors || (!cors.allowOrigin && !cors.allowMethods)) return null;
+  return (
+    <div className="mt-3 p-2 rounded border border-border bg-muted/20">
+      <div className="text-[11px] font-medium text-muted-foreground mb-1 flex items-center gap-1">
+        <Globe className="w-3 h-3" /> CORS Configuration
+      </div>
+      {cors.allowOrigin && <div className="text-[10px]"><span className="text-muted-foreground">Origin:</span> <span className={cors.allowOrigin === '*' ? 'text-amber-400' : 'text-emerald-400'}>{cors.allowOrigin}</span></div>}
+      {cors.allowMethods && <div className="text-[10px]"><span className="text-muted-foreground">Methods:</span> {cors.allowMethods}</div>}
+      {cors.credentials && <div className="text-[10px]"><span className="text-muted-foreground">Credentials:</span> {cors.credentials}</div>}
+    </div>
+  );
+}
+
+function QueryParamsTable({ params }) {
+  if (!params || !Object.keys(params).length) return null;
+  return (
+    <div className="mt-2">
+      <div className="text-[11px] text-muted-foreground font-medium mb-1">Query Parameters</div>
+      <div className="space-y-1">
+        {Object.entries(params).map(([k, v]) => (
+          <div key={k} className="flex gap-2 text-[11px] bg-muted/20 px-2 py-1 rounded">
+            <span className="font-mono text-primary/80 shrink-0">{k}</span>
+            <span className="text-muted-foreground">=</span>
+            <span className="font-mono text-foreground/70 break-all">{v}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -94,6 +127,14 @@ export default function ApiDetailPanel({ api, onClose, onCopy }) {
             Rate: {api.response.rateLimit.remaining}/{api.response.rateLimit.limit}
           </Badge>
         )}
+        {api.apiVersion && (
+          <Badge variant="secondary" className="text-[10px] border-blue-500/30 text-blue-400">
+            {api.apiVersion}
+          </Badge>
+        )}
+        {api.category && (
+          <Badge variant="secondary" className="text-[10px]">{api.category}</Badge>
+        )}
         <Badge variant="secondary" className="text-[10px]">{api.type}</Badge>
       </div>
 
@@ -112,6 +153,7 @@ export default function ApiDetailPanel({ api, onClose, onCopy }) {
           <TabsTrigger value="response" className="text-[11px] h-7">Response</TabsTrigger>
           <TabsTrigger value="request" className="text-[11px] h-7">Request</TabsTrigger>
           <TabsTrigger value="headers" className="text-[11px] h-7">Headers</TabsTrigger>
+          <TabsTrigger value="code" className="text-[11px] h-7">Code</TabsTrigger>
           {api.graphql && <TabsTrigger value="graphql" className="text-[11px] h-7">GraphQL</TabsTrigger>}
         </TabsList>
 
@@ -125,10 +167,16 @@ export default function ApiDetailPanel({ api, onClose, onCopy }) {
                     {api.response.size} bytes
                   </div>
                 )}
+                {api.response.cacheControl && (
+                  <div className="text-[10px] text-muted-foreground mb-2">
+                    Cache: {api.response.cacheControl}
+                  </div>
+                )}
                 <JsonBlock data={api.response.data} />
                 {api.response.error && (
                   <p className="text-xs text-destructive mt-2">{api.response.error}</p>
                 )}
+                <CorsInfo cors={api.response.cors} />
               </>
             ) : (
               <p className="text-xs text-muted-foreground py-4">No response captured</p>
@@ -136,6 +184,7 @@ export default function ApiDetailPanel({ api, onClose, onCopy }) {
           </TabsContent>
 
           <TabsContent value="request" className="mt-2">
+            <QueryParamsTable params={api.queryParams} />
             {api.payload ? (
               <JsonBlock data={api.payload} label="Request Body" />
             ) : (
@@ -149,6 +198,20 @@ export default function ApiDetailPanel({ api, onClose, onCopy }) {
             <Separator className="my-3" />
             <div className="text-[11px] font-medium text-muted-foreground mb-1">Response Headers</div>
             <HeadersTable headers={api.response?.headers} />
+          </TabsContent>
+
+          <TabsContent value="code" className="mt-2">
+            <CodeGenerator api={api} onCopy={onCopy} type="api" />
+            <div className="mt-4 space-y-2">
+              <div className="text-[11px] font-medium text-muted-foreground">Usage Notes</div>
+              <div className="text-[10px] text-muted-foreground space-y-1 bg-muted/20 p-2 rounded">
+                <p>• Copy the code snippet above and paste it into your project</p>
+                {api.authentication && <p>• This endpoint requires <strong>{api.authentication[0]?.type}</strong> — make sure to include valid credentials</p>}
+                {api.response?.rateLimit && <p>• Rate limited: {api.response.rateLimit.remaining}/{api.response.rateLimit.limit} remaining</p>}
+                {api.response?.cors?.allowOrigin && <p>• CORS: {api.response.cors.allowOrigin === '*' ? 'Open (any origin allowed)' : `Restricted to ${api.response.cors.allowOrigin}`}</p>}
+                {api.graphql && <p>• GraphQL {api.graphql.operationType}: modify the query/variables as needed</p>}
+              </div>
+            </div>
           </TabsContent>
 
           {api.graphql && (

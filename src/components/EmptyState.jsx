@@ -20,11 +20,14 @@ export default function EmptyState({ onNew }) {
           <ArrowRight className="w-4 h-4" />
         </Button>
 
-        <div className="mt-10 grid grid-cols-3 gap-4 text-center">
+        <div className="mt-10 grid grid-cols-3 gap-3 text-center">
           {[
-            { label: 'Discover', desc: 'Find hidden APIs' },
-            { label: 'Analyze', desc: 'Auth, headers, rate limits' },
-            { label: 'Export', desc: 'JSON with full details' },
+            { label: 'APIs', desc: 'XHR, Fetch, GraphQL' },
+            { label: 'WebSockets', desc: 'Real-time connections' },
+            { label: 'Auth', desc: 'Cookies, Bearer, API Keys' },
+            { label: 'Code Gen', desc: 'cURL, JS, Python, Node' },
+            { label: 'Security', desc: 'CSP, CORS, HSTS scan' },
+            { label: 'Export', desc: 'JSON, CSV, Postman' },
           ].map((item) => (
             <div key={item.label} className="p-3 rounded-lg bg-card border border-border">
               <div className="text-xs font-semibold text-primary">{item.label}</div>
