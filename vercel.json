@@ -13,7 +13,8 @@
     }
   },
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "AWS_LAMBDA_JS_RUNTIME": "nodejs20.x"
   },
   "regions": ["iad1"],
   "cleanUrls": true,
