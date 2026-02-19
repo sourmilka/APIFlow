@@ -313,7 +313,9 @@ export default async function handler(req, res) {
       if (isApiCall) {
         let parsedUrl;
         try { parsedUrl = new URL(reqUrl); } catch { parsedUrl = null; }
-        if (parsedUrl) {
+        // Skip if CDP backup already captured this exact URL
+        const alreadyCaptured = apiCalls.some(c => c.url === reqUrl);
+        if (parsedUrl && !alreadyCaptured) {
           pendingApiCount++;
           lastApiTime = Date.now();
           apiCalls.push({
@@ -566,29 +568,47 @@ export default async function handler(req, res) {
     // Remove internal marker
     delete securityHeaders._captured;
 
+    // ── Deduplicate APIs by URL ───────────────────────────
+    // Same URL captured by both request interception and CDP → keep the one with response data
+    const seenUrls = new Map();
+    const dedupedApis = [];
+    for (const api of apiCalls) {
+      const existing = seenUrls.get(api.url);
+      if (!existing) {
+        seenUrls.set(api.url, dedupedApis.length);
+        dedupedApis.push(api);
+      } else if (!dedupedApis[existing].response && api.response) {
+        // Replace if existing has no response but this one does
+        dedupedApis[existing] = api;
+      }
+    }
+    // Re-assign sequential IDs
+    dedupedApis.forEach((api, i) => { api.id = i + 1; });
+    log('info', `Deduped: ${apiCalls.length} → ${dedupedApis.length} APIs`);
+
     // Build analytics
-    const analytics = helpers.buildAnalytics(apiCalls, webSocketConnections, sseConnections);
+    const analytics = helpers.buildAnalytics(dedupedApis, webSocketConnections, sseConnections);
 
     // Optional MongoDB save
     try {
       const { getCollection, COLLECTIONS } = await import('./config/mongodb.js');
       const col = await getCollection(COLLECTIONS.SESSIONS);
       await col.insertOne({
-        sessionId, url, apiCalls, webSockets: webSocketConnections, sse: sseConnections,
+        sessionId, url, apiCalls: dedupedApis, webSockets: webSocketConnections, sse: sseConnections,
         analytics, securityHeaders, pageInfo, pageResources,
         timestamp: new Date(), createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000)
       });
     } catch (e) { log('info', 'MongoDB save skipped: ' + e.message); }
 
     const duration = Date.now() - startTime;
-    log('info', `Scan complete: ${apiCalls.length} APIs, ${webSocketConnections.length} WebSockets, ${sseConnections.length} SSE in ${duration}ms`);
+    log('info', `Scan complete: ${dedupedApis.length} APIs (${apiCalls.length} raw), ${webSocketConnections.length} WebSockets, ${sseConnections.length} SSE in ${duration}ms`);
 
     res.json({
       sessionId, url: landedUrl,
-      totalApis: apiCalls.length,
+      totalApis: dedupedApis.length,
       totalWebSockets: webSocketConnections.length,
       totalSSE: sseConnections.length,
-      apis: apiCalls,
+      apis: dedupedApis,
       webSockets: webSocketConnections,
       sse: sseConnections,
       analytics,
